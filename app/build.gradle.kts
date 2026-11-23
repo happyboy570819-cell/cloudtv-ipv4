@@ -12,8 +12,8 @@ android {
         // minSdk 21 支持市面上 99% 的安卓 5.0+ 老旧电视盒子与新款智能电视
         minSdk = 21
         targetSdk = 34
-        versionCode = 100
-        versionName = "1.0.0-IPv4"
+        versionCode = 102
+        versionName = "1.2.0-IPv4-FFmpeg"
     }
 
     buildTypes {
@@ -32,6 +32,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -48,6 +49,8 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
     // AndroidX 基础与 TV 兼容库
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
@@ -63,7 +66,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-rtsp:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
-    // 内置 FFmpeg 音频软解引擎：完美解决河南卫视等广电/酒店源采用 MP2(0x03) / AC-3(0x06) 杜比音轨导致安卓盒子无声及音画时钟卡顿的问题！
+    // 内置 FFmpeg 音频软解引擎：完美解决广电/酒店源 MP2(0x03) / AC-3(0x06) 杜比音轨导致安卓盒子无声及音画时钟卡顿的问题！
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.2.1+1")
 
     // OkHttp 网络层（用于强制纯 IPv4 DNS 过滤 & 后台并发测速）
