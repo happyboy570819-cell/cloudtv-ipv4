@@ -1,0 +1,3 @@
+-keep class com.cloudtv.iptv.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
