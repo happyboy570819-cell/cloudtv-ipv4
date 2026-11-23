@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:keepScreenOn="true">
+
+    <!-- 1. 底层全屏 Media3 ExoPlayer 视频播放视图 -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/playerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:focusable="false"
+        app:resize_mode="fit"
+        app:use_controller="false" />
+
+    <!-- 2. 左上角遥控器数字键输入选台悬浮提示 -->
+    <TextView
+        android:id="@+id/tvNumericInputBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="32dp"
+        android:background="@drawable/bg_osd_card"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="10dp"
+        android:text="频道 01"
+        android:textColor="#38BDF8"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- 3. 右上角频道、纯 IPv4 信号源状态、实时网速与遥控快捷键提示卡片 -->
+    <LinearLayout
+        android:id="@+id/topInfoBanner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="24dp"
+        android:background="@drawable/bg_osd_card"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="14dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvChannelNumAndName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="01  CCTV-1 综合"
+                android:textColor="#F8FAFC"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvRouteBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:background="@drawable/bg_badge_ipv4"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="纯IPv4 线路 1/4"
+                android:textColor="#10B981"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvVideoStats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="1920x1080 · 均衡防卡顿模式 · 实时 850 KB/s"
+            android:textColor="#94A3B8"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvKeyHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="[上下键] 换台   [左右键] 秒切备用信号源   [OK键] 选台列表   [菜单键] 防卡设置/手机配源"
+            android:textColor="#38BDF8"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- 4. 画面中央缓冲与自动切源加载提示 -->
+    <LinearLayout
+        android:id="@+id/centerBufferingOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_osd_card"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="28dp"
+        android:paddingVertical="18dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:indeterminate="true" />
+
+        <TextView
+            android:id="@+id/tvBufferingStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="正在缓冲纯 IPv4 信号源..."
+            android:textColor="#F8FAFC"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <!-- 5. 左侧三级选台与多线路切换半透明抽屉 (按 OK 键呼出) -->
+    <LinearLayout
+        android:id="@+id/leftChannelDrawer"
+        android:layout_width="680dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="#E60F172A"
+        android:orientation="horizontal"
+        android:padding="14dp"
+        android:visibility="gone">
+
+        <!-- 第一列：频道分类 (央视/卫视/收藏) -->
+        <LinearLayout
+            android:layout_width="150dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="频道分类"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvGroups"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="8dp"
+            android:background="#334155" />
+
+        <!-- 第二列：频道列表 -->
+        <LinearLayout
+            android:layout_width="270dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="频道列表 (按OK键播放)"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChannels"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="8dp"
+            android:background="#334155" />
+
+        <!-- 第三列：当前频道的多条纯 IPv4 备用信号源及实测延迟 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="纯IPv4多源 (卡顿自动切)"
+                android:textColor="#38BDF8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvRoutes"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 6. 右侧防卡顿设置、全量测速与局域网手机配源面板 (按 MENU 键或长按 OK 键呼出) -->
+    <LinearLayout
+        android:id="@+id/rightSettingsPanel"
+        android:layout_width="400dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="#F00F172A"
+        android:orientation="vertical"
+        android:padding="20dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚙️ 云视 TV · 纯 IPv4 防卡顿中心"
+            android:textColor="#38BDF8"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLanServerUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_badge_ipv4"
+            android:lineSpacingExtra="3dp"
+            android:padding="12dp"
+            android:text="📱 手机/电脑浏览器免遥控器配源：\nhttp://192.168.1.x:8989"
+            android:textColor="#E2E8F0"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btnSwitchRoute"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="⚡ 立即切换下一条纯 IPv4 备用源"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnSpeedTestAll"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="🚀 一键全频道纯 IPv4 并发测速优选"
+            android:textAllCaps="false"
+            android:textColor="#10B981"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnToggleBufferMode"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="🛡️ 防卡顿缓冲：均衡防卡顿模式"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnToggleDecoder"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="🎞️ 解码策略：硬解优先 (软解自动兜底)"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnToggleFavorite"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="☆ 收藏当前频道"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnSyncRemoteUrl"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="☁️ 在线同步更新纯 IPv4 聚合源"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnInputCustomUrl"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="🔗 配置局域网/自定义 M3U 订阅链接"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnToggleBootStart"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_tv_focusable_item"
+            android:gravity="start|center_vertical"
+            android:paddingHorizontal="14dp"
+            android:text="🔌 开机自启直播：已关闭"
+            android:textAllCaps="false"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+</FrameLayout>
