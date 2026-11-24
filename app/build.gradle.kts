@@ -12,8 +12,8 @@ android {
         // minSdk 21 支持市面上 99% 的安卓 5.0+ 老旧电视盒子与新款智能电视
         minSdk = 21
         targetSdk = 34
-        versionCode = 103
-        versionName = "1.3.0-TVBox-Stable"
+        versionCode = 104
+        versionName = "1.4.0-TVBox-Perfect"
     }
 
     buildTypes {
