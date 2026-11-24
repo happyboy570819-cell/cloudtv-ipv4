@@ -191,6 +191,7 @@ class MainActivity : AppCompatActivity(), PlayerManager.Listener, LanConfigServe
         groupAdapter = ChannelGroupAdapter(emptyList()) { _, group ->
             val currentId = playerManager.getCurrentChannel()?.id.orEmpty()
             channelAdapter.submitList(group.channels, currentId)
+            rvChannels.scrollToPosition(0)
             val previewCh = group.channels.firstOrNull { it.id == currentId } ?: group.channels.firstOrNull()
             if (previewCh != null) {
                 routeAdapter.submitRoutes(previewCh.routes, previewCh.currentRouteIndex)
