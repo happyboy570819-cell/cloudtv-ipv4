@@ -183,6 +183,10 @@ class MainActivity : AppCompatActivity(), PlayerManager.Listener, LanConfigServe
         rvGroups.layoutManager = LinearLayoutManager(this)
         rvChannels.layoutManager = LinearLayoutManager(this)
         rvRoutes.layoutManager = LinearLayoutManager(this)
+        // 关闭 RecyclerView 默认过渡动画，杜绝安卓 9 机顶盒遥控器快速按键时动画与布局冲突
+        rvGroups.itemAnimator = null
+        rvChannels.itemAnimator = null
+        rvRoutes.itemAnimator = null
 
         groupAdapter = ChannelGroupAdapter(emptyList()) { _, group ->
             val currentId = playerManager.getCurrentChannel()?.id.orEmpty()
@@ -378,13 +382,20 @@ class MainActivity : AppCompatActivity(), PlayerManager.Listener, LanConfigServe
     private fun playSelectedChannel(channel: TvChannel, routeIndex: Int? = null) {
         repository.lastChannelId = channel.id
         playerManager.playChannel(channel, routeIndex)
-        updateSettingsLabels()
-        // 切台后自动在后台静默测速该频道的所有备用线路，确保需要切源时秒切最快源
-        speedTester.probeChannelRoutesAsync(channel) {
-            if (playerManager.getCurrentChannel()?.id == channel.id) {
-                routeAdapter.submitRoutes(channel.routes, channel.currentRouteIndex)
-            }
+        if (isSettingsOpen()) {
+            updateSettingsLabels()
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // 机顶盒切后台或退出时立即暂停硬解码器，防止 Amlogic RenderThread 在 Surface 销毁后继续渲染触发 EGL_BAD_ACCESS 崩溃
+        playerManager.pause()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        playerManager.resume()
     }
 
     private fun switchChannelByOffset(offset: Int) {
@@ -493,7 +504,16 @@ class MainActivity : AppCompatActivity(), PlayerManager.Listener, LanConfigServe
         leftChannelDrawer.visibility = View.VISIBLE
         topInfoBanner.visibility = View.VISIBLE
         uiHandler.removeCallbacks(hideTopBannerRunnable)
-        rvChannels.requestFocus()
+        rvChannels.post {
+            val playingId = playerManager.getCurrentChannel()?.id
+            val groups = repository.getChannelGroups()
+            val activeGroup = groups.getOrNull(groupAdapter.selectedPosition)
+            val chIdx = activeGroup?.channels?.indexOfFirst { it.id == playingId }?.coerceAtLeast(0) ?: 0
+            rvChannels.scrollToPosition(chIdx)
+            rvChannels.post {
+                (rvChannels.findViewHolderForAdapterPosition(chIdx)?.itemView ?: rvChannels).requestFocus()
+            }
+        }
     }
 
     private fun hideChannelDrawer() {
@@ -538,17 +558,22 @@ class MainActivity : AppCompatActivity(), PlayerManager.Listener, LanConfigServe
         val ch = playerManager.getCurrentChannel()
         val route = ch?.currentRoute()
         if (isBuffering) {
-            centerBufferingOverlay.visibility = View.VISIBLE
+            if (centerBufferingOverlay.visibility != View.VISIBLE) {
+                centerBufferingOverlay.visibility = View.VISIBLE
+            }
             val routeText = if (ch != null) "线路 ${ch.currentRouteIndex + 1}/${ch.routes.size}" else "信号源"
             tvBufferingStatus.text = "正在缓冲 ${ch?.name ?: ""} ($routeText) · ${netSpeedKbps} KB/s"
-        } else {
+        } else if (centerBufferingOverlay.visibility != View.GONE) {
             centerBufferingOverlay.visibility = View.GONE
         }
-        tvVideoStats.text =
-            "$currentVideoResolution · ${repository.bufferMode.displayName} · 实时 ${netSpeedKbps} KB/s"
-        if (route != null && ch != null) {
-            tvRouteBadge.text =
-                "纯IPv4 线路 ${ch.currentRouteIndex + 1}/${ch.routes.size} · ${route.statusBadgeText()}"
+        // 仅当右上角信息横幅可见时才更新文字，避免全屏观看时每秒触发 UI 重绘消耗机顶盒主线程资源
+        if (topInfoBanner.visibility == View.VISIBLE) {
+            tvVideoStats.text =
+                "$currentVideoResolution · ${repository.bufferMode.displayName} · 实时 ${netSpeedKbps} KB/s"
+            if (route != null && ch != null) {
+                tvRouteBadge.text =
+                    "纯IPv4 线路 ${ch.currentRouteIndex + 1}/${ch.routes.size} · ${route.statusBadgeText()}"
+            }
         }
     }
 
