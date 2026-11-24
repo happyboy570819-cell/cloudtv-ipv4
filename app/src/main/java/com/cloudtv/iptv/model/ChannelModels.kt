@@ -123,30 +123,30 @@ enum class BufferMode(
 ) {
     FAST_ZAPPING(
         displayName = "极速秒开模式",
-        description = "换台 0.8 秒起播，适合带宽充裕的优质源",
-        minBufferMs = 4_000,
-        maxBufferMs = 18_000,
+        description = "换台 0.8 秒起播，低内存占用，适合带宽充裕的优质源",
+        minBufferMs = 2_500,
+        maxBufferMs = 8_000,
         playbackBufferMs = 800,
         rebufferMs = 1_800,
-        stallTimeoutMs = 5_500L
+        stallTimeoutMs = 8_000L
     ),
     BALANCED_ANTI_STUTTER(
         displayName = "均衡防卡顿模式 (推荐)",
-        description = "1.5 秒起播 + 30 秒环形抗抖动缓冲，兼顾换台速度与稳定性",
-        minBufferMs = 10_000,
-        maxBufferMs = 32_000,
+        description = "1.5 秒起播 + 12 秒抗抖动缓冲，专为安卓机顶盒内存优化",
+        minBufferMs = 4_000,
+        maxBufferMs = 12_000,
         playbackBufferMs = 1_500,
-        rebufferMs = 3_000,
-        stallTimeoutMs = 6_500L
+        rebufferMs = 2_500,
+        stallTimeoutMs = 9_500L
     ),
     WEAK_NETWORK_LARGE_BUFFER(
-        displayName = "弱网超大缓冲模式",
-        description = "2.8 秒起播 + 50 秒超大缓冲池，彻底消除晚高峰网络波动卡顿",
-        minBufferMs = 18_000,
-        maxBufferMs = 50_000,
-        playbackBufferMs = 2_800,
-        rebufferMs = 5_000,
-        stallTimeoutMs = 8_500L
+        displayName = "弱网大缓冲模式",
+        description = "2.5 秒起播 + 18 秒缓冲池，消除晚高峰网络波动卡顿",
+        minBufferMs = 6_000,
+        maxBufferMs = 18_000,
+        playbackBufferMs = 2_500,
+        rebufferMs = 4_000,
+        stallTimeoutMs = 12_000L
     );
 
     fun next(): BufferMode {
