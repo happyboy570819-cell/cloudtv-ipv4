@@ -15,12 +15,6 @@ import com.cloudtv.iptv.model.TvChannel
 
 private val mainUiHandler = Handler(Looper.getMainLooper())
 
-/**
- * 安全刷新 RecyclerView 适配器：
- * 在安卓 9 电视盒子 (D-Pad 遥控器焦点模式) 下，RecyclerView 在 onLayoutChildren 布局过程中会自动转移子 View 焦点，
- * 此时同步调用 notifyDataSetChanged() 会触发 IllegalStateException: Cannot call this method while RecyclerView is computing a layout or scrolling。
- * 通过 post 到下一帧或捕获异常延迟刷新，彻底杜绝电视盒子遥控器焦点切换闪退！
- */
 private fun RecyclerView.Adapter<*>.safeNotifyDataSetChanged(rv: RecyclerView?) {
     if (rv != null && (rv.isComputingLayout || rv.scrollState != RecyclerView.SCROLL_STATE_IDLE)) {
         rv.post {
@@ -45,6 +39,8 @@ private fun RecyclerView.Adapter<*>.safeNotifyDataSetChanged(rv: RecyclerView?) 
 
 /**
  * 一级抽屉：频道分类列表适配器（央视频道 / 卫视频道 / 地方台 / 我的收藏）
+ * 关键修复：遥控器上下切换分类焦点时，直接原地更新已挂载子 View 的高亮颜色，
+ * 绝不调用 notifyDataSetChanged() 销毁当前持有焦点的子 View（否则安卓焦点系统会把焦点强行重置回第 0 项“央视频道”！）
  */
 class ChannelGroupAdapter(
     private var groups: List<ChannelGroup>,
@@ -70,6 +66,24 @@ class ChannelGroupAdapter(
         safeNotifyDataSetChanged(attachedRecyclerView)
     }
 
+    /**
+     * 原地更新分类列表选中态样式（不触发 RecyclerView 重新绑定与焦点丢失）
+     */
+    private fun updateSelectionVisualsInPlace(newSelectedPos: Int) {
+        selectedPosition = newSelectedPos
+        val rv = attachedRecyclerView ?: return
+        for (i in 0 until rv.childCount) {
+            val child = rv.getChildAt(i) ?: continue
+            val vh = rv.getChildViewHolder(child) as? ViewHolder ?: continue
+            val pos = vh.bindingAdapterPosition
+            val isSel = (pos == newSelectedPos)
+            vh.itemView.isSelected = isSel
+            vh.tvGroupName.setTextColor(
+                if (isSel) Color.parseColor("#38BDF8") else Color.parseColor("#F1F5F9")
+            )
+        }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_group, parent, false)
         return ViewHolder(v)
@@ -90,23 +104,25 @@ class ChannelGroupAdapter(
 
         holder.itemView.setOnFocusChangeListener { v, hasFocus ->
             if (hasFocus) {
-                v.post {
-                    val newPos = holder.bindingAdapterPosition
-                    if (newPos != RecyclerView.NO_POSITION && newPos in groups.indices && newPos != selectedPosition) {
-                        selectedPosition = newPos
-                        safeNotifyDataSetChanged(attachedRecyclerView)
-                        onGroupFocusedOrClicked(newPos, groups[newPos])
+                val newPos = holder.bindingAdapterPosition
+                if (newPos != RecyclerView.NO_POSITION && newPos in groups.indices && newPos != selectedPosition) {
+                    updateSelectionVisualsInPlace(newPos)
+                    v.post {
+                        if (newPos in groups.indices && selectedPosition == newPos) {
+                            onGroupFocusedOrClicked(newPos, groups[newPos])
+                        }
                     }
                 }
             }
         }
         holder.itemView.setOnClickListener { v ->
-            v.post {
-                val pos = holder.bindingAdapterPosition
-                if (pos != RecyclerView.NO_POSITION && pos in groups.indices) {
-                    selectedPosition = pos
-                    safeNotifyDataSetChanged(attachedRecyclerView)
-                    onGroupFocusedOrClicked(pos, groups[pos])
+            val pos = holder.bindingAdapterPosition
+            if (pos != RecyclerView.NO_POSITION && pos in groups.indices) {
+                updateSelectionVisualsInPlace(pos)
+                v.post {
+                    if (pos in groups.indices) {
+                        onGroupFocusedOrClicked(pos, groups[pos])
+                    }
                 }
             }
         }
@@ -256,7 +272,6 @@ class RouteListAdapter(
             val idx = holder.bindingAdapterPosition
             if (idx != RecyclerView.NO_POSITION && idx in routes.indices) {
                 activeRouteIndex = idx
-                safeNotifyDataSetChanged(attachedRecyclerView)
                 onRouteClicked(idx, routes[idx])
             }
         }
