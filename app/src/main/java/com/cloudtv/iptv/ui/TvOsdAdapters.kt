@@ -1,6 +1,8 @@
 package com.cloudtv.iptv.ui
 
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +13,36 @@ import com.cloudtv.iptv.model.ChannelGroup
 import com.cloudtv.iptv.model.StreamRoute
 import com.cloudtv.iptv.model.TvChannel
 
+private val mainUiHandler = Handler(Looper.getMainLooper())
+
+/**
+ * 安全刷新 RecyclerView 适配器：
+ * 在安卓 9 电视盒子 (D-Pad 遥控器焦点模式) 下，RecyclerView 在 onLayoutChildren 布局过程中会自动转移子 View 焦点，
+ * 此时同步调用 notifyDataSetChanged() 会触发 IllegalStateException: Cannot call this method while RecyclerView is computing a layout or scrolling。
+ * 通过 post 到下一帧或捕获异常延迟刷新，彻底杜绝电视盒子遥控器焦点切换闪退！
+ */
+private fun RecyclerView.Adapter<*>.safeNotifyDataSetChanged(rv: RecyclerView?) {
+    if (rv != null && (rv.isComputingLayout || rv.scrollState != RecyclerView.SCROLL_STATE_IDLE)) {
+        rv.post {
+            try {
+                notifyDataSetChanged()
+            } catch (_: Exception) {
+            }
+        }
+        return
+    }
+    try {
+        notifyDataSetChanged()
+    } catch (_: IllegalStateException) {
+        mainUiHandler.post {
+            try {
+                notifyDataSetChanged()
+            } catch (_: Exception) {
+            }
+        }
+    }
+}
+
 /**
  * 一级抽屉：频道分类列表适配器（央视频道 / 卫视频道 / 地方台 / 我的收藏）
  */
@@ -20,11 +52,22 @@ class ChannelGroupAdapter(
 ) : RecyclerView.Adapter<ChannelGroupAdapter.ViewHolder>() {
 
     var selectedPosition: Int = 0
+    private var attachedRecyclerView: RecyclerView? = null
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        attachedRecyclerView = recyclerView
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        attachedRecyclerView = null
+    }
 
     fun submitList(newGroups: List<ChannelGroup>, selectIndex: Int = 0) {
         groups = newGroups
         selectedPosition = selectIndex.coerceIn(0, (newGroups.size - 1).coerceAtLeast(0))
-        notifyDataSetChanged()
+        safeNotifyDataSetChanged(attachedRecyclerView)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -45,25 +88,26 @@ class ChannelGroupAdapter(
             if (isSelected) Color.parseColor("#38BDF8") else Color.parseColor("#F1F5F9")
         )
 
-        holder.itemView.setOnFocusChangeListener { _, hasFocus ->
+        holder.itemView.setOnFocusChangeListener { v, hasFocus ->
             if (hasFocus) {
-                val old = selectedPosition
-                selectedPosition = holder.bindingAdapterPosition
-                if (old != selectedPosition) {
-                    notifyItemChanged(old)
-                    notifyItemChanged(selectedPosition)
-                }
-                if (selectedPosition in groups.indices) {
-                    onGroupFocusedOrClicked(selectedPosition, groups[selectedPosition])
+                v.post {
+                    val newPos = holder.bindingAdapterPosition
+                    if (newPos != RecyclerView.NO_POSITION && newPos in groups.indices && newPos != selectedPosition) {
+                        selectedPosition = newPos
+                        safeNotifyDataSetChanged(attachedRecyclerView)
+                        onGroupFocusedOrClicked(newPos, groups[newPos])
+                    }
                 }
             }
         }
-        holder.itemView.setOnClickListener {
-            val pos = holder.bindingAdapterPosition
-            if (pos in groups.indices) {
-                selectedPosition = pos
-                notifyDataSetChanged()
-                onGroupFocusedOrClicked(pos, groups[pos])
+        holder.itemView.setOnClickListener { v ->
+            v.post {
+                val pos = holder.bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION && pos in groups.indices) {
+                    selectedPosition = pos
+                    safeNotifyDataSetChanged(attachedRecyclerView)
+                    onGroupFocusedOrClicked(pos, groups[pos])
+                }
             }
         }
     }
@@ -84,11 +128,23 @@ class ChannelListAdapter(
 ) : RecyclerView.Adapter<ChannelListAdapter.ViewHolder>() {
 
     var playingChannelId: String = ""
+    private var attachedRecyclerView: RecyclerView? = null
+    private var lastFocusedChannelId: String = ""
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        attachedRecyclerView = recyclerView
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        attachedRecyclerView = null
+    }
 
     fun submitList(newChannels: List<TvChannel>, activeChannelId: String) {
         channels = newChannels
         playingChannelId = activeChannelId
-        notifyDataSetChanged()
+        safeNotifyDataSetChanged(attachedRecyclerView)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -110,13 +166,25 @@ class ChannelListAdapter(
             if (isPlaying) Color.parseColor("#10B981") else Color.parseColor("#F8FAFC")
         )
 
-        holder.itemView.setOnFocusChangeListener { _, hasFocus ->
+        holder.itemView.setOnFocusChangeListener { v, hasFocus ->
             if (hasFocus) {
-                onChannelFocused(ch)
+                v.post {
+                    val pos = holder.bindingAdapterPosition
+                    if (pos != RecyclerView.NO_POSITION && pos in channels.indices) {
+                        val focused = channels[pos]
+                        if (focused.id != lastFocusedChannelId) {
+                            lastFocusedChannelId = focused.id
+                            onChannelFocused(focused)
+                        }
+                    }
+                }
             }
         }
         holder.itemView.setOnClickListener {
-            onChannelClicked(ch)
+            val pos = holder.bindingAdapterPosition
+            if (pos != RecyclerView.NO_POSITION && pos in channels.indices) {
+                onChannelClicked(channels[pos])
+            }
         }
     }
 
@@ -128,7 +196,7 @@ class ChannelListAdapter(
 }
 
 /**
- * 三级抽屉：单个频道的多条纯 IPv4 信号源线路列表适配器（显示延迟 ms、速率 KB/s、故障冷却状态）
+ * 三级抽屉：单个频道的多条纯 IPv4 信号源线路列表适配器
  */
 class RouteListAdapter(
     private var routes: List<StreamRoute>,
@@ -136,10 +204,22 @@ class RouteListAdapter(
     private val onRouteClicked: (Int, StreamRoute) -> Unit
 ) : RecyclerView.Adapter<RouteListAdapter.ViewHolder>() {
 
+    private var attachedRecyclerView: RecyclerView? = null
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        attachedRecyclerView = recyclerView
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        attachedRecyclerView = null
+    }
+
     fun submitRoutes(newRoutes: List<StreamRoute>, currentIndex: Int) {
         routes = newRoutes
         activeRouteIndex = currentIndex
-        notifyDataSetChanged()
+        safeNotifyDataSetChanged(attachedRecyclerView)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -174,9 +254,9 @@ class RouteListAdapter(
 
         holder.itemView.setOnClickListener {
             val idx = holder.bindingAdapterPosition
-            if (idx in routes.indices) {
+            if (idx != RecyclerView.NO_POSITION && idx in routes.indices) {
                 activeRouteIndex = idx
-                notifyDataSetChanged()
+                safeNotifyDataSetChanged(attachedRecyclerView)
                 onRouteClicked(idx, routes[idx])
             }
         }
