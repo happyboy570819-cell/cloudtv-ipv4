@@ -77,8 +77,17 @@ class PlayerManager(
                 val speedKbps = (bandwidthMeter?.bitrateEstimate ?: 0L) / 8_000L
                 listener.onBufferingStateChanged(isBuffering, player.bufferedPercentage, speedKbps)
             }
-            mainHandler.postDelayed(this, 1000L)
+            mainHandler.postDelayed(this, 2000L)
         }
+    }
+
+    fun pause() {
+        mainHandler.removeCallbacks(stallWatchdogRunnable)
+        exoPlayer?.playWhenReady = false
+    }
+
+    fun resume() {
+        exoPlayer?.playWhenReady = true
     }
 
     fun initialize(
@@ -116,13 +125,22 @@ class PlayerManager(
                 bufferMode.playbackBufferMs,
                 bufferMode.rebufferMs
             )
-            .setPrioritizeTimeOverSizeThresholds(true)
+            // 严格限制缓冲区最大内存占用为 10MB，防止安卓 9 机顶盒长时间播放 1080P/4K 流耗尽 JVM 堆内存触发 Full-GC 卡死和 OOM 闪退
+            .setTargetBufferBytes(10 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .setBackBuffer(0, false)
             .build()
 
-        // 默认开启 EXTENSION_RENDERER_MODE_PREFER，让内置的 FfmpegAudioRenderer 优先接管 MP2/AC-3/AAC 全部音频解码，
-        // 同时视频依然走电视盒子硬件 MediaCodec 硬解，彻底消灭广电 MP2/AC-3 音轨导致的“无声 + 音频时钟卡死引起画面卡顿”！
+        // 默认开启 EXTENSION_RENDERER_MODE_ON：标准 H.264/H.265 视频与 AAC 音频走晶晨 Amlogic 硬件 MediaCodec 硬解（0 CPU 占用），
+        // 遇到广电 MP2(0x03) / AC-3(0x06) 音轨时自动无缝启用内置的 FfmpegAudioRenderer 软解！
         val renderersFactory = DefaultRenderersFactory(context).apply {
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            setExtensionRendererMode(
+                if (preferSoftwareDecoder) {
+                    DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                } else {
+                    DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                }
+            )
             setEnableDecoderFallback(true)
         }
 
